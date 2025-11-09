@@ -54,7 +54,7 @@ typedef int16_t sample_t;  // 2 bytes per sample
 // ============================================================================
 // TRIGGER THRESHOLDS
 // ============================================================================
-#define RMS_THRESHOLD_MG      3.0    // Minimum acceleration in milli-g
+#define RMS_THRESHOLD_MG      5.0    // Minimum acceleration in milli-g (increased to reduce false triggers)
 #define KURTOSIS_THRESHOLD    5.0    // Impulsiveness threshold
 #define KURTOSIS_WINDOW_MS    500    // 0.5 second window
 #define MIN_DURATION_MS       500    // Reject events <0.5s
@@ -69,6 +69,10 @@ typedef int16_t sample_t;  // 2 bytes per sample
 #define NOISE_BAND_LOW        15.0   // Hz - mechanical noise, footsteps, etc.
 #define NOISE_BAND_HIGH       50.0   // Hz - high-frequency anthropogenic noise
 #define SPECTRAL_RATIO_MIN    2.0    // EQ/noise energy ratio (seismic must dominate)
+
+// Peak frequency validation (reject low-frequency drift and building sway)
+#define PEAK_FREQ_MIN         1.0    // Hz - reject anything below 1 Hz (building sway, drift)
+#define PEAK_FREQ_MAX         15.0   // Hz - reject high-frequency noise
 
 // Wave type identification bands (for P-wave vs S-wave classification)
 #define P_WAVE_BAND_LOW       4.0    // Hz - P-waves typically 4-15 Hz

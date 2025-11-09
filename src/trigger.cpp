@@ -214,6 +214,15 @@ bool TriggerDetector::checkSpectralContent(TriggerInfo &info) {
     }
     info.peak_freq_hz = (max_bin * SAMPLE_RATE_HZ) / (float)FFT_SIZE;
 
+    // Check if peak frequency is in valid seismic range (reject drift and building sway)
+    if (info.peak_freq_hz < PEAK_FREQ_MIN || info.peak_freq_hz > PEAK_FREQ_MAX) {
+        #if DEBUG_TRIGGER
+        DEBUG_PRINTF("[TRIGGER] Rejected: Peak freq %.1f Hz outside valid range (%.1f-%.1f Hz)\n",
+                    info.peak_freq_hz, PEAK_FREQ_MIN, PEAK_FREQ_MAX);
+        #endif
+        return false;
+    }
+
     // Check if spectral ratio meets threshold
     if (spectral_ratio < SPECTRAL_RATIO_MIN) {
         #if DEBUG_TRIGGER
