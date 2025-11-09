@@ -127,9 +127,10 @@ bool OTAUpdater::downloadAndInstall(const String& url) {
     DEBUG_PRINTLN("[OTA] Downloading firmware...");
 
     http.begin(client, url);
+    http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);  // Follow GitHub redirects
     int httpCode = http.GET();
 
-    if (httpCode != HTTP_CODE_OK && httpCode != HTTP_CODE_MOVED_PERMANENTLY) {
+    if (httpCode != HTTP_CODE_OK) {
         DEBUG_PRINTF("[OTA] Download failed: HTTP %d\n", httpCode);
         http.end();
         return false;
