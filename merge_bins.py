@@ -43,8 +43,20 @@ def merge_bin(source, target, env):
         print("Skipping merged binary creation. Use 'pio run' to build normally.")
         return
 
-    # Create merged binary (4MB flash size)
-    flash_size = 0x400000  # 4MB
+    # Read firmware size first to calculate required size
+    firmware_size = os.path.getsize(firmware_path)
+
+    # Calculate minimum required size (rounded up to 1MB boundary)
+    # Firmware starts at 0x10000, so total = 0x10000 + firmware_size
+    min_size = 0x10000 + firmware_size
+    flash_size = ((min_size + 0xFFFFF) // 0x100000) * 0x100000  # Round up to 1MB
+
+    # Cap at 4MB for ESP32
+    flash_size = min(flash_size, 0x400000)
+
+    print(f"Firmware size: {firmware_size / 1024:.1f} KB")
+    print(f"Merged binary size: {flash_size / 1024 / 1024:.1f} MB")
+
     merged = bytearray([0xFF] * flash_size)
 
     # Bootloader at 0x1000
@@ -65,20 +77,30 @@ def merge_bin(source, target, env):
         firmware = f.read()
         merged[0x10000:0x10000 + len(firmware)] = firmware
 
-    # Write merged binary
+    # Write merged binary (full flash image)
     print(f"Writing merged firmware to: {merged_path}")
     with open(merged_path, "wb") as f:
         f.write(merged)
 
-    # Get file size
-    file_size = os.path.getsize(merged_path)
-    file_size_kb = file_size / 1024
-    file_size_mb = file_size_kb / 1024
+    # Also create OTA-only binary (just the firmware, no bootloader/partitions)
+    ota_path = os.path.join(build_dir, "qsafe-ota.bin")
+    print(f"Creating OTA-only firmware: {ota_path}")
+    shutil.copy2(firmware_path, ota_path)
+
+    # Get file sizes
+    merged_size = os.path.getsize(merged_path)
+    ota_size = os.path.getsize(ota_path)
 
     print("=" * 60)
-    print(f"✓ Merged firmware created successfully!")
-    print(f"  File: {merged_path}")
-    print(f"  Size: {file_size_mb:.2f} MB ({file_size_kb:.0f} KB)")
+    print(f"✓ Firmware binaries created successfully!")
+    print(f"")
+    print(f"  Full image (web flashing):  {os.path.basename(merged_path)}")
+    print(f"    Size: {merged_size / 1024 / 1024:.2f} MB")
+    print(f"    Use: Initial flash via USB or web flasher")
+    print(f"")
+    print(f"  OTA image (updates):        {os.path.basename(ota_path)}")
+    print(f"    Size: {ota_size / 1024:.1f} KB")
+    print(f"    Use: Upload to GitHub releases for OTA updates")
     print("=" * 60)
     print("")
     print("Upload to ESP32 using ESP Web Tools:")

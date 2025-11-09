@@ -21,7 +21,9 @@ cd C:\Users\cemfi\Documents\PlatformIO\Projects\QSafe
 pio run
 ```
 
-This creates: `.pio\build\esp32dev\qsafe-merged.bin`
+This creates two firmware files:
+- **`.pio\build\esp32dev\qsafe-ota.bin`** - OTA updates (~800 KB)
+- **`.pio\build\esp32dev\qsafe-merged.bin`** - Full flash image (~2-4 MB)
 
 ### 2. Create GitHub Release
 
@@ -29,7 +31,9 @@ This creates: `.pio\build\esp32dev\qsafe-merged.bin`
 2. **Tag version:** `v1.0.1` (increment from current version)
 3. **Release title:** `QSafe v1.0.1 - Description`
 4. **Description:** Changelog (what's new/fixed)
-5. **Attach file:** Upload `qsafe-merged.bin`
+5. **Attach files:**
+   - Upload **`qsafe-ota.bin`** (recommended - smaller, faster OTA)
+   - Optionally upload `qsafe-merged.bin` (for initial flash)
 6. Click **"Publish release"**
 
 ### 3. Nodes Auto-Update

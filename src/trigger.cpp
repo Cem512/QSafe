@@ -137,7 +137,9 @@ float TriggerDetector::calculateKurtosis() {
 }
 
 bool TriggerDetector::checkSpectralContent(TriggerInfo &info) {
-    // Copy buffer to FFT arrays
+    // Copy buffer to FFT arrays (use entire buffer for better frequency resolution)
+    // Note: FFT uses 512 samples (2.56s) for good frequency resolution (0.39 Hz bins)
+    // This is intentionally longer than RMS/Kurtosis window (0.5s) for stable spectral analysis
     for (int i = 0; i < FFT_SIZE; i++) {
         _vReal[i] = (double)_window_buffer[i];
         _vImag[i] = 0;

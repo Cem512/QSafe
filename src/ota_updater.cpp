@@ -97,11 +97,12 @@ bool OTAUpdater::fetchReleaseInfo() {
         _latest_version = tag_name;
     }
 
-    // Find firmware asset (qsafe-merged.bin)
+    // Find firmware asset (try OTA binary first, then fallback to merged)
     JsonArray assets = doc["assets"];
     for (JsonObject asset : assets) {
         String name = asset["name"] | "";
-        if (name == "qsafe-merged.bin") {
+        // Prefer qsafe-ota.bin (smaller, faster download)
+        if (name == "qsafe-ota.bin" || name == "qsafe-merged.bin") {
             _download_url = asset["browser_download_url"] | "";
             DEBUG_PRINTF("[OTA] Found firmware: %s\n", name.c_str());
             break;
@@ -110,6 +111,7 @@ bool OTAUpdater::fetchReleaseInfo() {
 
     if (_download_url.length() == 0) {
         DEBUG_PRINTLN("[OTA] ✗ Firmware binary not found in release");
+        DEBUG_PRINTLN("[OTA]   Expected: qsafe-ota.bin or qsafe-merged.bin");
         return false;
     }
 
