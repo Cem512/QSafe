@@ -11,21 +11,30 @@ def merge_bin(source, target, env):
     print("Creating merged firmware for ESP Web Tools...")
     print("=" * 60)
 
-    # Get the firmware path
-    firmware_path = str(target[0])
-    build_dir = os.path.dirname(firmware_path)
+    # Get the build directory from the ELF target
+    elf_path = str(target[0])
+    build_dir = os.path.dirname(elf_path)
 
-    # Define file paths
+    # Define file paths - use firmware.bin, not the .elf file
+    firmware_path = os.path.join(build_dir, "firmware.bin")
     bootloader_path = os.path.join(build_dir, "bootloader.bin")
     partitions_path = os.path.join(build_dir, "partitions.bin")
     merged_path = os.path.join(build_dir, "qsafe-merged.bin")
 
-    # Wait for all required files to exist (max 10 seconds)
-    max_wait = 10
+    # Wait for all required files to exist (max 15 seconds)
+    print(f"Waiting for build artifacts...")
+    print(f"  Looking for: {os.path.basename(firmware_path)}")
+
+    max_wait = 15
     for i in range(max_wait):
         if os.path.exists(bootloader_path) and os.path.exists(partitions_path) and os.path.exists(firmware_path):
+            print(f"  ✓ All files found after {i+1} seconds")
             break
+        if i > 0 and i % 3 == 0:
+            print(f"  Still waiting... ({i}/{max_wait}s)")
         time.sleep(1)
+    else:
+        print(f"  ✗ Timeout after {max_wait} seconds")
 
     # Check if all required files exist
     if not os.path.exists(bootloader_path):
@@ -39,8 +48,16 @@ def merge_bin(source, target, env):
         return
 
     if not os.path.exists(firmware_path):
-        print(f"Warning: Firmware not found at {firmware_path}")
-        print("Skipping merged binary creation. Use 'pio run' to build normally.")
+        print(f"✗ ERROR: Firmware not found at {firmware_path}")
+        print(f"Files in build directory:")
+        try:
+            for file in os.listdir(build_dir):
+                if file.endswith('.bin') or file.endswith('.elf'):
+                    size = os.path.getsize(os.path.join(build_dir, file))
+                    print(f"  - {file} ({size} bytes)")
+        except:
+            pass
+        print("Skipping merged binary creation.")
         return
 
     # Read firmware size first to calculate required size
@@ -85,7 +102,25 @@ def merge_bin(source, target, env):
     # Also create OTA-only binary (just the firmware, no bootloader/partitions)
     ota_path = os.path.join(build_dir, "qsafe-ota.bin")
     print(f"Creating OTA-only firmware: {ota_path}")
+
+    # Delete old OTA file if it exists to avoid appending
+    if os.path.exists(ota_path):
+        os.remove(ota_path)
+        print(f"  Removed old OTA file")
+
+    # Copy firmware.bin to qsafe-ota.bin
     shutil.copy2(firmware_path, ota_path)
+
+    # Verify the copy worked correctly
+    firmware_size_check = os.path.getsize(firmware_path)
+    ota_size_check = os.path.getsize(ota_path)
+
+    if firmware_size_check != ota_size_check:
+        print(f"WARNING: OTA file size mismatch!")
+        print(f"  firmware.bin: {firmware_size_check} bytes")
+        print(f"  qsafe-ota.bin: {ota_size_check} bytes")
+    else:
+        print(f"  ✓ OTA binary verified: {ota_size_check} bytes")
 
     # Get file sizes
     merged_size = os.path.getsize(merged_path)
@@ -110,9 +145,9 @@ def merge_bin(source, target, env):
     print("  4. Click 'Install' and follow prompts")
     print("=" * 60)
 
-# Register the callback to run after building
-# Use a different target to ensure bootloader and partitions are built first
+# Register the callback to run after building the binary file
 def post_program_action(source, target, env):
     merge_bin(source, target, env)
 
-env.AddPostAction("$BUILD_DIR/${PROGNAME}.elf", post_program_action)
+# Run after firmware.bin is created (not after .elf)
+env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", post_program_action)
