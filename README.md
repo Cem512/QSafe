@@ -11,6 +11,7 @@ A sophisticated ESP32-based seismograph node for earthquake early warning system
 - **WiFi Provisioning** - Easy setup via captive portal (no hardcoded credentials!)
 - **Dual-Core Processing** - Real-time sampling on Core 1, networking on Core 0
 - **NTP Time Sync** - Microsecond-precision timestamps for multi-node triangulation
+- **OTA Updates** - Over-the-air firmware updates from GitHub Releases
 
 ## Quick Start
 
@@ -32,9 +33,10 @@ See [CREDENTIALS_SETUP.md](CREDENTIALS_SETUP.md) for details.
 In VS Code with PlatformIO:
 - Click the **✓ Build** button in the bottom toolbar
 
-This creates a single merged firmware file:
+This creates two firmware files:
 ```
-.pio/build/esp32dev/qsafe-merged.bin
+.pio/build/esp32dev/qsafe-ota.bin      (~1 MB - for OTA updates)
+.pio/build/esp32dev/qsafe-merged.bin   (~2 MB - for initial flash)
 ```
 
 ### 3. Flash to ESP32
@@ -140,6 +142,7 @@ Edit `src/config.h` for:
 {"command": "calibrate"}  // Perform calibration
 {"command": "restart"}    // Reboot node
 {"command": "status"}     // Request immediate heartbeat
+{"command": "update"}     // Check for and install OTA updates
 ```
 
 ## LED Indicators
@@ -155,7 +158,7 @@ Edit `src/config.h` for:
 Connect at **115200 baud** to see:
 ```
 ╔══════════════════════════════════════════╗
-║   EEW Node Firmware v1.0.0               ║
+║   EEW Node Firmware v1.0.1               ║
 ║   Earthquake Early Warning System        ║
 ╚══════════════════════════════════════════╝
 
@@ -177,9 +180,11 @@ Connect at **115200 baud** to see:
 - `src/calibration.cpp` - Gravity compensation
 - `src/trigger.cpp` - Signal processing & FFT
 - `src/mqtt_handler.cpp` - MQTT TLS client
+- `src/ota_updater.cpp` - OTA firmware update manager
 - `src/config.h` - All configuration parameters
-- `merge_bins.py` - Build script (creates merged firmware)
+- `merge_bins.py` - Build script (creates OTA and merged firmware)
 - `FLASHING.md` - Detailed flashing instructions
+- `OTA_UPDATE_GUIDE.md` - OTA update documentation
 
 ## Troubleshooting
 
@@ -238,6 +243,21 @@ Built with:
 
 ---
 
-**Version**: 1.0.0
+**Version**: 1.0.1
 **Author**: QSafe Team
 **Hardware**: ESP32 + ADXL345
+
+## Updates & Changelog
+
+### v1.0.1 (Latest)
+- Fixed OTA binary size issue (was 16 MB, now correctly ~1 MB)
+- Improved merge script to use `firmware.bin` instead of `firmware.elf`
+- Added file size verification during build
+- Enhanced build process reliability
+
+### v1.0.0
+- Initial release
+- Full seismograph functionality
+- MQTT TLS communication
+- Auto-calibration
+- WiFi provisioning
