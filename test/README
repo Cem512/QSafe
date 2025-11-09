@@ -1,0 +1,502 @@
+# EEW Node Firmware v1.0.0
+
+**Earthquake Early Warning System - ESP32 Node Firmware**
+
+---
+
+## 📋 Hardware Requirements
+
+- **ESP32 DevKit** (classic, not S3 - but code is compatible with both)
+- **ADXL345** 3-axis accelerometer
+- **USB Cable** (for power and programming)
+- **Jumper Wires** (for SPI connection)
+
+### Wiring (SPI Mode)
+
+```
+ESP32 DevKit    →    ADXL345
+─────────────────────────────
+GPIO 18 (SCK)   →    SCL
+GPIO 19 (MISO)  ←    SDO  
+GPIO 23 (MOSI)  →    SDA
+GPIO 5  (CS)    →    CS
+3.3V            →    VCC
+GND             →    GND
+```
+
+**⚠️ IMPORTANT:** ADXL345 must be powered with 3.3V, NOT 5V!
+
+---
+
+## 🛠️ Software Requirements
+
+### 1. Install PlatformIO
+
+**Option A: VS Code Extension (Recommended)**
+```
+1. Install Visual Studio Code
+2. Open Extensions (Ctrl+Shift+X)
+3. Search "PlatformIO IDE"
+4. Click Install
+5. Restart VS Code
+```
+
+**Option B: Command Line**
+```bash
+pip install platformio
+```
+
+### 2. Clone/Download This Repository
+
+```bash
+git clone https://github.com/YOUR_REPO/eew-node-firmware.git
+cd eew-node-firmware
+```
+
+---
+
+## ⚙️ Configuration
+
+### 1. Edit `src/config.h`
+
+**CRITICAL: Update these lines with your HiveMQ credentials:**
+
+```cpp
+#define MQTT_USERNAME         "YOUR_HIVEMQ_USERNAME"  // ← CHANGE THIS
+#define MQTT_PASSWORD         "YOUR_HIVEMQ_PASSWORD"  // ← CHANGE THIS
+```
+
+The broker URL is already set to your HiveMQ instance:
+```cpp
+#define MQTT_PRIMARY_BROKER   "2d3a5393d1184da09df490c130e6f541.s1.eu.hivemq.cloud"
+```
+
+### 2. Check Upload Port (if needed)
+
+Edit `platformio.ini` line 27:
+```ini
+upload_port = /dev/ttyUSB0  ; Linux
+; upload_port = COM3        ; Windows
+; upload_port = /dev/cu.usbserial-*  ; Mac
+```
+
+---
+
+## 🚀 Build & Flash
+
+### Using PlatformIO (VS Code)
+
+1. Open the project folder in VS Code
+2. PlatformIO will auto-detect and install dependencies
+3. Connect ESP32 via USB
+4. Click "Upload" button (→ arrow icon) in PlatformIO toolbar
+5. Wait for build and upload to complete
+
+### Using Command Line
+
+```bash
+# Build firmware
+pio run
+
+# Upload to ESP32
+pio run --target upload
+
+# Open serial monitor
+pio device monitor
+```
+
+---
+
+## 📡 First Boot & Provisioning
+
+### What to Expect
+
+1. **First boot:** ESP32 creates WiFi Access Point
+   - SSID: `EEW-Setup-XXXX` (XXXX = last 4 chars of MAC)
+   - Password: None (open network)
+
+2. **Connect with your phone/laptop:**
+   - Go to WiFi settings
+   - Connect to `EEW-Setup-XXXX`
+   - Browser should auto-open (captive portal)
+   - If not, navigate to: `http://192.168.4.1`
+
+3. **Configure WiFi:**
+   - Select your home WiFi network
+   - Enter password
+   - Click "Save"
+
+4. **Node reboots and connects:**
+   - Connects to your WiFi
+   - Syncs time via NTP
+   - Registers with HiveMQ MQTT broker
+   - Performs auto-calibration
+   - Starts monitoring
+
+### Serial Monitor Output
+
+Expected boot sequence:
+```
+╔══════════════════════════════════════════╗
+║   EEW Node Firmware v1.0.0               ║
+║   Earthquake Early Warning System        ║
+╚══════════════════════════════════════════╝
+
+[SETUP] Getting node identity...
+[ID] Hardware ID: 24AC41234567
+[ID] Node ID: Node_4567
+
+[SETUP] Connecting to WiFi...
+[WiFi] Starting portal: EEW-Setup-4567
+... (connect via phone) ...
+[WiFi] ✓ Connected!
+[WiFi] IP: 192.168.1.150
+[WiFi] RSSI: -52 dBm
+
+[NTP] Current time: 14:32:45
+
+[SETUP] Initializing ADXL345...
+[ADXL345] Device ID: 0xE5 (expected 0xE5)
+[ADXL345] ✓ Initialized successfully
+
+[SETUP] Loading calibration...
+[CAL] No calibration found in NVS
+[SETUP] No calibration found - performing now...
+[CAL] Place node on stable surface...
+[CAL] Calibration will start in 5 seconds...
+[CAL] 5...
+[CAL] 4...
+[CAL] 3...
+[CAL] 2...
+[CAL] 1...
+[CAL] Collecting samples...
+[CAL] Progress: 0/1000
+[CAL] Progress: 100/1000
+...
+[CAL] Processing...
+[CAL] Mean gravity: X=0.023 Y=-0.015 Z=-0.998 g
+[CAL] Std dev: X=0.0012 Y=0.0010 Z=0.0015 g
+[CAL] Gravity magnitude: 1.002 g
+[CAL] ✓ Calibration successful!
+[CAL] Orientation: Pitch=1.3° Roll=-0.9°
+[CAL] ✓ Saved calibration to NVS
+
+[SETUP] Connecting to MQTT...
+[MQTT] Connecting to 2d3a5393d1184da09df490c130e6f541.s1.eu.hivemq.cloud:8883
+[MQTT] ✓ Connected!
+[MQTT] ✓ Subscribed to eew/cmd/Node_4567
+[MQTT] ✓ Subscribed to eew/alert
+
+[SETUP] Registering with server...
+[MQTT] ✓ Published to eew/register
+
+[SETUP] Starting sampling task...
+[SAMPLING] Task started on Core 1
+
+[SETUP] ✓✓✓ SYSTEM READY ✓✓✓
+```
+
+### LED Indicators
+
+- **Fast blink (200ms):** Hardware error (ADXL345 not detected)
+- **Solid ON:** System ready, monitoring
+- **Triple blink:** Earthquake detected (trigger sent)
+- **Rapid blink (50ms × 10):** Alert received from server
+
+---
+
+## 🧪 Testing Your Node
+
+### 1. Drop Test (Manual Trigger)
+
+1. Place node on stable surface
+2. Drop a heavy book next to it (within 10cm)
+3. Watch serial monitor for trigger detection
+
+Expected output:
+```
+[TRIGGER] ✓ EVENT DETECTED!
+  RMS: 8.5 mg
+  Kurtosis: 6.2
+  Spectral Ratio: 3.1
+  Peak Freq: 4.5 Hz
+  Duration: 1200 ms
+
+[TX] Preparing trigger data...
+[COMPRESS] Original: 4000 bytes, Encoded: 5336 bytes
+[TX] Sending 8192 bytes...
+[TX] ✓ Trigger data sent successfully
+[TRIGGER] Cooldown complete, monitoring resumed
+```
+
+### 2. Check HiveMQ Console
+
+1. Log into HiveMQ Cloud console
+2. Navigate to "Web Client" or "Monitoring"
+3. Subscribe to topics:
+   - `eew/register`
+   - `eew/heartbeat/#`
+   - `eew/raw/#`
+
+You should see:
+- Registration message (on boot)
+- Heartbeats every 60 seconds
+- Trigger data (after drop test)
+
+### 3. Verify Calibration
+
+In serial monitor, check:
+```
+[CAL] Gravity magnitude: 1.002 g  ← Should be 0.99-1.01
+[CAL] Orientation: Pitch=1.3° Roll=-0.9°  ← Should be <45°
+```
+
+If values are outside range, recalibrate by:
+- Pressing reset button
+- Or sending MQTT command (see below)
+
+---
+
+## 🔧 MQTT Commands
+
+Send commands to your node via MQTT:
+
+### Calibrate
+```json
+Topic: eew/cmd/Node_XXXX
+Payload: {"command": "calibrate"}
+```
+
+### Request Status
+```json
+Topic: eew/cmd/Node_XXXX
+Payload: {"command": "status"}
+```
+
+### Restart Node
+```json
+Topic: eew/cmd/Node_XXXX
+Payload: {"command": "restart", "delay_s": 10}
+```
+
+---
+
+## 📊 Data Format Reference
+
+### Registration Message
+```json
+{
+  "hardware_id": "24AC41234567",
+  "node_id": "Node_4567",
+  "version": "1.0.0",
+  "chip_model": "ESP32",
+  "timestamp_us": 1699452731123456,
+  "sequence": 0
+}
+```
+
+### Heartbeat
+```json
+{
+  "timestamp_us": 1699452791123456,
+  "sequence": 42,
+  "uptime_s": 86400,
+  "wifi_rssi": -52,
+  "rms_mg": 1.2,
+  "heap_free_kb": 180,
+  "triggers_24h": 2,
+  "gravity_mag": 1.003,
+  "pitch_deg": 1.3,
+  "roll_deg": -0.9,
+  "calibration_age_h": 48
+}
+```
+
+### Trigger Data
+```json
+{
+  "timestamp_us": 1699452731123456,
+  "sequence": 43,
+  "trigger_info": {
+    "rms_mg": 8.5,
+    "kurtosis": 6.2,
+    "duration_ms": 1200,
+    "spectral_ratio": 3.1,
+    "peak_freq_hz": 4.5
+  },
+  "waveform": {
+    "axis": "Z",
+    "sample_rate": 200,
+    "samples": 2000,
+    "format": "int16",
+    "scale_factor": 3.9,
+    "data": "base64_encoded_waveform..."
+  }
+}
+```
+
+---
+
+## 🐛 Troubleshooting
+
+### Issue: ADXL345 not detected
+
+**Symptoms:**
+```
+[ADXL345] Device ID: 0x00 (expected 0xE5)
+[SETUP] ✗ ADXL345 initialization failed!
+```
+
+**Solutions:**
+1. Check wiring (especially CS pin)
+2. Verify 3.3V power (NOT 5V!)
+3. Check SPI pins match config.h
+4. Try different jumper wires
+5. Test ADXL345 with I2C first (simpler wiring)
+
+### Issue: WiFi won't connect
+
+**Symptoms:**
+```
+[WiFi] ✗ Failed to connect, restarting...
+```
+
+**Solutions:**
+1. Ensure 2.4 GHz WiFi (ESP32 doesn't support 5 GHz)
+2. Check WiFi password is correct
+3. Move closer to router
+4. Try resetting WiFi credentials:
+   - Hold ESP32 reset button during power-on
+   - Or reflash firmware
+
+### Issue: MQTT connection fails
+
+**Symptoms:**
+```
+[MQTT] ✗ Failed, rc=-2
+```
+
+**Error Codes:**
+- `-2`: Network connection failed (check internet)
+- `-4`: Connection refused, bad credentials
+- `-5`: Connection refused, not authorized
+
+**Solutions:**
+1. Verify MQTT_USERNAME and MQTT_PASSWORD in config.h
+2. Check HiveMQ Cloud cluster is running
+3. Verify firewall allows outbound port 8883
+4. Check HiveMQ credentials are correct (case-sensitive!)
+
+### Issue: Calibration fails
+
+**Symptoms:**
+```
+[CAL] ERROR: Node is moving (high std dev)
+```
+
+**Solutions:**
+1. Place node on very stable surface
+2. Avoid touching or vibrations during calibration
+3. Wait 10 seconds for node to settle before starting
+4. Check for nearby vibration sources (HVAC, traffic)
+
+### Issue: False triggers
+
+**Symptoms:** Too many triggers from normal activities
+
+**Solutions:**
+1. Increase RMS_THRESHOLD_MG in config.h (try 4.0 or 5.0)
+2. Increase KURTOSIS_THRESHOLD (try 6.0 or 7.0)
+3. Place node on ground floor (less building vibration)
+4. Move away from stairs, elevators, heavy machinery
+
+### Issue: No triggers during actual shaking
+
+**Symptoms:** Real earthquake not detected
+
+**Solutions:**
+1. Decrease RMS_THRESHOLD_MG in config.h (try 2.0)
+2. Check node is not in cooldown (30s after last trigger)
+3. Verify calibration is valid (check gravity_mag)
+4. Test with manual triggers (drop book)
+
+---
+
+## 📚 Advanced Configuration
+
+### Adjusting Sensitivity
+
+Edit `src/config.h`:
+
+```cpp
+// More sensitive (catches smaller events, more false alarms)
+#define RMS_THRESHOLD_MG      2.0    // Lower
+#define KURTOSIS_THRESHOLD    4.0    // Lower
+
+// Less sensitive (fewer false alarms, might miss small events)
+#define RMS_THRESHOLD_MG      5.0    // Higher
+#define KURTOSIS_THRESHOLD    7.0    // Higher
+```
+
+### Changing Sample Rate
+
+```cpp
+#define SAMPLE_RATE_HZ        100    // Lower CPU usage
+#define SAMPLE_RATE_HZ        200    // Balanced (recommended)
+#define SAMPLE_RATE_HZ        400    // Higher precision, more data
+```
+
+### Adjusting Cooldown
+
+```cpp
+#define COOLDOWN_TIME_MS      15000  // 15 seconds (more frequent triggers)
+#define COOLDOWN_TIME_MS      30000  // 30 seconds (default)
+#define COOLDOWN_TIME_MS      60000  // 60 seconds (avoid re-triggering)
+```
+
+---
+
+## 🔄 OTA Updates (Future Feature)
+
+OTA (Over-The-Air) updates will be added in v1.1. For now, update firmware by:
+
+1. Connect ESP32 via USB
+2. Run `pio run --target upload`
+3. Node will restart with new firmware
+
+---
+
+## 📝 Next Steps
+
+1. **Deploy Multiple Nodes:** Flash 3+ nodes for coincidence detection
+2. **Set Up Pi 4 Server:** Run processing pipeline (separate repo)
+3. **Register Node Locations:** Use dashboard to assign GPS coordinates
+4. **Monitor & Tune:** Adjust thresholds based on local noise conditions
+5. **Test Network:** Coordinate manual triggers to validate timing
+
+---
+
+## 🆘 Support
+
+- **GitHub Issues:** https://github.com/YOUR_REPO/eew-node-firmware/issues
+- **Documentation:** https://github.com/YOUR_REPO/eew-system/wiki
+- **Email:** your-email@example.com
+
+---
+
+## 📜 License
+
+MIT License - See LICENSE file
+
+---
+
+## 🙏 Acknowledgments
+
+- **PhaseNet:** Zhu & Beroza, 2019
+- **HiveMQ Cloud:** Free MQTT hosting
+- **WiFiManager:** tzapu/WiFiManager library
+- **ArduinoFFT:** kosme/arduinoFFT library
+
+---
+
+**Built with ❤️ for earthquake resilience**

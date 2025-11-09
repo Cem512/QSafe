@@ -1,0 +1,16 @@
+{
+  "name": "QSafe Earthquake Early Warning Node",
+  "version": "1.0.0",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [
+        {
+          "path": "qsafe-merged.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}
