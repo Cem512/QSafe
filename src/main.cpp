@@ -11,6 +11,7 @@
 #include "calibration.h"
 #include "trigger.h"
 #include "mqtt_handler.h"
+#include "ota_updater.h"
 
 // ============================================================================
 // GLOBAL OBJECTS
@@ -20,6 +21,7 @@ ADXL345 accel;  // I2C mode - no pin argument needed
 Calibration calibration;
 TriggerDetector trigger_detector;
 MQTTHandler mqtt;
+OTAUpdater ota;
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, NTP_SERVER_DEFAULT, TIMEZONE_OFFSET_SEC, NTP_UPDATE_INTERVAL);
@@ -45,6 +47,15 @@ unsigned long last_heartbeat = 0;
 unsigned long last_calibration_check = 0;
 unsigned long trigger_time = 0;
 bool in_cooldown = false;
+
+// WiFi resilience
+unsigned long last_wifi_check = 0;
+unsigned long wifi_reconnect_count = 0;
+#define WIFI_CHECK_INTERVAL_MS 10000  // Check every 10 seconds
+
+// OTA update check
+unsigned long last_ota_check = 0;
+#define OTA_CHECK_INTERVAL_MS 86400000UL  // 24 hours (daily check)
 
 // Sequence number for MQTT messages
 uint32_t sequence_number = 0;
@@ -163,19 +174,71 @@ void setup() {
 // ============================================================================
 
 void loop() {
-    // Update MQTT
-    mqtt.loop();
-    
-    // Update NTP periodically
-    timeClient.update();
-    
-    // Send heartbeat
     unsigned long now = millis();
+
+    // Monitor WiFi connection and auto-reconnect if needed
+    if (now - last_wifi_check > WIFI_CHECK_INTERVAL_MS) {
+        if (WiFi.status() != WL_CONNECTED) {
+            DEBUG_PRINTLN("[WiFi] Connection lost! Attempting to reconnect...");
+            wifi_reconnect_count++;
+
+            WiFi.reconnect();
+            int attempts = 0;
+            while (WiFi.status() != WL_CONNECTED && attempts < 20) {  // 10 seconds max
+                delay(500);
+                DEBUG_PRINT(".");
+                attempts++;
+            }
+
+            if (WiFi.status() == WL_CONNECTED) {
+                DEBUG_PRINTLN("\n[WiFi] ✓ Reconnected!");
+                DEBUG_PRINTF("[WiFi] IP: %s\n", WiFi.localIP().toString().c_str());
+                DEBUG_PRINTF("[WiFi] RSSI: %d dBm\n", WiFi.RSSI());
+                DEBUG_PRINTF("[WiFi] Reconnect count: %lu\n", wifi_reconnect_count);
+
+                // Reconnect MQTT after WiFi is restored
+                mqtt.loop();  // This will trigger auto-reconnect in MQTT handler
+            } else {
+                DEBUG_PRINTLN("\n[WiFi] ✗ Reconnection failed. Will retry in 10s...");
+            }
+        }
+        last_wifi_check = now;
+    }
+
+    // Update MQTT (will auto-reconnect if WiFi is available)
+    mqtt.loop();
+
+    // Update NTP periodically (skip if no WiFi)
+    if (WiFi.status() == WL_CONNECTED) {
+        timeClient.update();
+    }
+
+    // Send heartbeat
     if (now - last_heartbeat > HEARTBEAT_INTERVAL_MS) {
         sendHeartbeat();
         last_heartbeat = now;
     }
     
+    // Check for OTA updates (daily, only if WiFi connected)
+    if (WiFi.status() == WL_CONNECTED && now - last_ota_check > OTA_CHECK_INTERVAL_MS) {
+        DEBUG_PRINTLN("[OTA] Performing daily update check...");
+        if (ota.checkForUpdate()) {
+            DEBUG_PRINTF("[OTA] New version %s available! Auto-installing...\n", ota.getLatestVersion().c_str());
+
+            // Notify server before update
+            StaticJsonDocument<256> doc;
+            doc["type"] = "ota_update_start";
+            doc["current_version"] = FIRMWARE_VERSION;
+            doc["new_version"] = ota.getLatestVersion();
+            mqtt.publishStatus(node_id.c_str(), doc);
+
+            delay(1000);  // Give MQTT time to send
+
+            ota.performUpdate();  // Will restart on success
+        }
+        last_ota_check = now;
+    }
+
     // Check calibration drift (hourly)
     if (now - last_calibration_check > CALIBRATION_CHECK_HRS * 3600000UL) {
         float ax, ay, az;
@@ -477,6 +540,28 @@ void handleCommand(JsonDocument& cmd) {
         DEBUG_PRINTLN("[CMD] Sending status...");
         sendHeartbeat();  // Immediate heartbeat
         
+    } else if (command == "update") {
+        DEBUG_PRINTLN("[CMD] Manual OTA update requested...");
+
+        // Send status
+        StaticJsonDocument<256> response;
+        response["command"] = "update";
+        response["status"] = "checking";
+        response["current_version"] = FIRMWARE_VERSION;
+        mqtt.publishStatus(node_id.c_str(), response);
+
+        // Check and install update
+        if (ota.checkForUpdate()) {
+            response["status"] = "updating";
+            response["new_version"] = ota.getLatestVersion();
+            mqtt.publishStatus(node_id.c_str(), response);
+
+            ota.performUpdate();  // Will restart on success
+        } else {
+            response["status"] = "up_to_date";
+            mqtt.publishStatus(node_id.c_str(), response);
+        }
+
     } else if (command == "config") {
         DEBUG_PRINTLN("[CMD] Configuration update (not implemented yet)");
         
