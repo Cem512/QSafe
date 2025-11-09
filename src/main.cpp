@@ -88,9 +88,9 @@ void setup() {
     
     DEBUG_PRINTLN("\n\n");
     DEBUG_PRINTLN("╔══════════════════════════════════════════╗");
-    DEBUG_PRINTLN("║   EEW Node Firmware v" FIRMWARE_VERSION "             ║");
+    DEBUG_PRINTLN("║   QSafe EEW Node v" FIRMWARE_VERSION "                 ║");
     DEBUG_PRINTLN("║   Earthquake Early Warning System        ║");
-    DEBUG_PRINTLN("║   ✓ OTA Updates Enabled                  ║");
+    DEBUG_PRINTLN("║   ✓ OTA Updates Ready                    ║");
     DEBUG_PRINTLN("╚══════════════════════════════════════════╝");
     DEBUG_PRINTLN("");
     
