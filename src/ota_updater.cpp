@@ -80,8 +80,8 @@ bool OTAUpdater::fetchReleaseInfo() {
     String payload = http.getString();
     http.end();
 
-    // Parse JSON response
-    DynamicJsonDocument doc(4096);
+    // Parse JSON response (GitHub API releases can be large, use 16KB)
+    DynamicJsonDocument doc(16384);
     DeserializationError error = deserializeJson(doc, payload);
 
     if (error) {
