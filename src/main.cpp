@@ -90,6 +90,7 @@ void setup() {
     DEBUG_PRINTLN("╔══════════════════════════════════════════╗");
     DEBUG_PRINTLN("║   EEW Node Firmware v" FIRMWARE_VERSION "             ║");
     DEBUG_PRINTLN("║   Earthquake Early Warning System        ║");
+    DEBUG_PRINTLN("║   ✓ OTA Updates Enabled                  ║");
     DEBUG_PRINTLN("╚══════════════════════════════════════════╝");
     DEBUG_PRINTLN("");
     
