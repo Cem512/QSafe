@@ -123,17 +123,9 @@ void setup() {
         }
     }
     
-    // Step 5: Load or perform calibration
-    DEBUG_PRINTLN("[SETUP] Loading calibration...");
-    if (calibration.loadFromNVS()) {
-        DEBUG_PRINTLN("[SETUP] ✓ Using saved calibration");
-        // Apply the loaded scale factor to the accelerometer
-        accel.setScaleFactor(calibration.getScaleFactor());
-        is_calibrated = true;
-    } else {
-        DEBUG_PRINTLN("[SETUP] No calibration found - performing now...");
-        performInitialCalibration();
-    }
+    // Step 5: Perform calibration on every boot
+    DEBUG_PRINTLN("[SETUP] Performing calibration on boot...");
+    performInitialCalibration();
     
     // Step 6: Initialize MQTT
     DEBUG_PRINTLN("[SETUP] Connecting to MQTT...");
