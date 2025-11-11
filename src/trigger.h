@@ -23,23 +23,28 @@ struct TriggerInfo {
 class TriggerDetector {
 public:
     TriggerDetector();
-    
+
     void addSample(float value_mg);
     bool checkTrigger(TriggerInfo &info);
-    
+
     float calculateRMS();
     float calculateKurtosis();
     bool checkSpectralContent(TriggerInfo &info);
-    
+
     void reset();
+
+    // Test mode: bypass spectral filtering
+    void setTestMode(bool enabled) { _test_mode = enabled; }
+    bool isTestMode() const { return _test_mode; }
     
 private:
     float _window_buffer[FFT_SIZE];
     int _window_index;
     bool _window_full;
-    
+
     unsigned long _trigger_start_time;
     bool _is_triggered;
+    bool _test_mode;
     
     // ArduinoFFT object (using legacy API for v1.6.2)
     arduinoFFT _fft;

@@ -555,6 +555,20 @@ void handleCommand(JsonDocument& cmd) {
             mqtt.publishStatus(node_id.c_str(), response);
         }
 
+    } else if (command == "testmode") {
+        // Toggle test mode
+        bool test_mode = !trigger_detector.isTestMode();
+        trigger_detector.setTestMode(test_mode);
+
+        DEBUG_PRINTF("[CMD] Test mode %s\n", test_mode ? "ENABLED" : "DISABLED");
+
+        // Send confirmation
+        StaticJsonDocument<256> response;
+        response["command"] = "testmode";
+        response["status"] = test_mode ? "enabled" : "disabled";
+        response["note"] = test_mode ? "Spectral filtering bypassed" : "Production mode active";
+        mqtt.publishStatus(node_id.c_str(), response);
+
     } else if (command == "config") {
         DEBUG_PRINTLN("[CMD] Configuration update (not implemented yet)");
         

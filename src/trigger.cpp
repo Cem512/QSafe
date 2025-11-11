@@ -6,6 +6,7 @@ TriggerDetector::TriggerDetector() {
     _window_full = false;
     _is_triggered = false;
     _trigger_start_time = 0;
+    _test_mode = false;  // Start in production mode
 
     memset(_window_buffer, 0, sizeof(_window_buffer));
 
@@ -38,16 +39,23 @@ bool TriggerDetector::checkTrigger(TriggerInfo &info) {
     
     // Step 2: Calculate Kurtosis (impulsiveness)
     float kurtosis = calculateKurtosis();
-    
+
     if (kurtosis < KURTOSIS_THRESHOLD) {
         _is_triggered = false;
         return false;  // Not impulsive enough
     }
-    
+
     // Step 3: Check spectral content (FFT-based noise rejection)
-    if (!checkSpectralContent(info)) {
-        _is_triggered = false;
-        return false;  // Failed spectral check
+    // Skip in test mode to allow any motion
+    if (!_test_mode) {
+        if (!checkSpectralContent(info)) {
+            _is_triggered = false;
+            return false;  // Failed spectral check
+        }
+    } else {
+        // In test mode, still calculate spectral info but don't reject
+        checkSpectralContent(info);
+        DEBUG_PRINTLN("[TRIGGER] TEST MODE: Bypassing spectral filtering");
     }
     
     // Step 4: Check duration
