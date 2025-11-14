@@ -4,13 +4,20 @@
 // ============================================================================
 // FIRMWARE VERSION
 // ============================================================================
-#define FIRMWARE_VERSION "1.0.7"
+#define FIRMWARE_VERSION "1.0.8"
 
 // ============================================================================
 // MQTT CONFIGURATION
 // ============================================================================
+// Production broker (HiveMQ Cloud - encrypted, authenticated)
 #define MQTT_PRIMARY_BROKER   "2d3a5393d1184da09df490c130e6f541.s1.eu.hivemq.cloud"
 #define MQTT_PRIMARY_PORT     8883  // TLS port
+
+// Development broker (Local Raspberry Pi - no encryption, for debugging)
+// Set to true to enable dual publishing (both cloud + local)
+#define ENABLE_DEV_BROKER     true
+#define MQTT_DEV_BROKER       "192.168.31.28"
+#define MQTT_DEV_PORT         1883  // No TLS
 
 // Credentials are loaded from credentials.h (not committed to git)
 // Copy credentials.h.example to credentials.h and fill in your values
@@ -23,6 +30,7 @@
 #define TOPIC_STATUS          "eew/status/"     // + node_id
 #define TOPIC_CMD             "eew/cmd/"        // + node_id
 #define TOPIC_ALERT           "eew/alert"
+#define TOPIC_STREAM          "eew/stream/"     // + node_id (dev only, 200 Hz)
 
 #define MQTT_QOS              1
 #define MQTT_KEEPALIVE_S      30

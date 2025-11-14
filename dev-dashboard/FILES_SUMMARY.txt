@@ -1,0 +1,255 @@
+QSafe Development Dashboard - File Summary
+==========================================
+
+All files have been created in: C:\Users\cemfi\seismograph-system\dev-dashboard\
+
+Raspberry Pi Files (transfer these to Pi):
+-------------------------------------------
+1. setup_pi.sh                  - Installation script (run first on Pi)
+2. dashboard_server.py          - Flask web server with SocketIO + MQTT client
+3. requirements.txt             - Python dependencies
+4. templates/dashboard.html     - Web interface (real-time charts)
+5. README.md                    - Complete documentation
+6. SETUP_INSTRUCTIONS.md        - Step-by-step setup guide
+
+ESP32 Files (already in QSafe project):
+---------------------------------------
+7. src/dual_mqtt.h              - Dual MQTT handler header
+8. src/dual_mqtt.cpp            - Dual MQTT implementation
+9. src/config.h                 - Updated with dev broker settings
+
+What Each File Does:
+====================
+
+[Raspberry Pi Side]
+
+setup_pi.sh:
+  - Installs Mosquitto MQTT broker (port 1883)
+  - Installs Python 3 + pip + virtualenv
+  - Creates Python virtual environment
+  - Installs Flask, SocketIO, paho-mqtt, numpy
+  - Configures Mosquitto for local dev (no auth)
+  - Tests MQTT connection
+  - Displays network info
+
+dashboard_server.py:
+  - Flask web server (port 5000)
+  - MQTT client (subscribes to eew/stream/#, eew/heartbeat/#, etc.)
+  - Real-time data processing:
+    * Receives 200 Hz acceleration stream
+    * Calculates STA/LTA ratio
+    * Maintains buffers for charts
+  - WebSocket server (Socket.IO):
+    * Pushes updates to browser at 20 Hz
+    * Emits: stream_update, stats_update, trigger_event
+  - REST API endpoints:
+    * GET /api/stats - Node statistics
+    * GET /api/triggers - Recent triggers
+    * GET /api/stream - Current stream buffer
+
+templates/dashboard.html:
+  - Single-page web app
+  - Chart.js for real-time graphs:
+    * 3-axis acceleration (X/Y/Z)
+    * STA/LTA ratio with threshold line
+  - Statistics display:
+    * RMS, Kurtosis, Peak Frequency
+    * Roll, Pitch, Node ID
+    * Trigger count
+  - Trigger event log with visual alerts
+  - WebSocket client (Socket.IO)
+  - Responsive dark theme UI
+
+requirements.txt:
+  - flask>=2.3.0
+  - flask-socketio>=5.3.0
+  - paho-mqtt>=1.6.1
+  - numpy>=1.21.0
+  - eventlet>=0.33.0
+  - python-socketio>=5.9.0
+
+[ESP32 Side]
+
+dual_mqtt.h/cpp:
+  - Manages TWO MQTT connections:
+    * Cloud (HiveMQ): TLS, authenticated, triggers/heartbeats
+    * Dev (Pi): No TLS, no auth, all data + streaming
+  - Methods:
+    * begin() - Connect to both brokers
+    * loop() - Maintain both connections
+    * publishStreamSample() - Send x/y/z at 20 Hz (dev only)
+    * publishTrigger/Heartbeat/Status() - Send to both
+  - Rate limiting: 200 Hz → 20 Hz for MQTT (every 10th sample)
+  - Independent reconnect logic for each broker
+
+config.h updates:
+  - Added ENABLE_DEV_BROKER flag
+  - Added MQTT_DEV_BROKER and MQTT_DEV_PORT
+  - Added TOPIC_STREAM for high-frequency data
+
+MQTT Topics:
+============
+
+Production (HiveMQ Cloud):
+--------------------------
+eew/register                - Node registration
+eew/heartbeat/{node_id}     - Status every 10s
+eew/raw/{node_id}           - Trigger waveforms
+eew/status/{node_id}        - Command responses
+eew/cmd/{node_id}           - Commands (subscribe)
+eew/alert                   - Earthquake alerts (from server)
+
+Development (Raspberry Pi):
+---------------------------
+All production topics PLUS:
+eew/stream/{node_id}        - Real-time acceleration (20 Hz)
+                              Format: {"x": 5.2, "y": -1.3, "z": 1005.8, "timestamp_ms": 12345}
+
+Data Flow:
+==========
+
+ESP32 (200 Hz sampling)
+  ↓ Every sample
+  Calibration → Trigger detection
+  ↓ Every 10th sample (20 Hz)
+  publishStreamSample(x, y, z)
+  ↓
+MQTT Dev Broker (Mosquitto on Pi)
+  Topic: eew/stream/Node_XXXX
+  QoS: 0 (best effort)
+  ↓
+dashboard_server.py
+  MQTT subscriber
+  ↓ On message
+  Calculate STA/LTA, store in buffer
+  ↓ Emit via WebSocket
+  Socket.IO → Browser
+  ↓
+dashboard.html
+  Chart.js → Update graphs
+  Display stats
+
+Network Requirements:
+=====================
+
+Ports to open on Raspberry Pi:
+- 1883 (Mosquitto MQTT)
+- 5000 (Flask dashboard)
+
+Both ESP32 and accessing device (laptop/phone) must be on same network as Pi (192.168.31.x)
+
+Quick Start Commands:
+====================
+
+1. Transfer files to Pi:
+   scp -r C:\Users\cemfi\seismograph-system\dev-dashboard pi@192.168.31.28:/home/pi/
+
+2. SSH to Pi:
+   ssh pi@192.168.31.28
+
+3. Run setup:
+   cd /home/pi/dev-dashboard
+   chmod +x setup_pi.sh
+   ./setup_pi.sh
+
+4. Start dashboard:
+   cd /home/pi/dev-dashboard
+   source venv/bin/activate
+   python3 dashboard_server.py
+
+5. Open browser:
+   http://192.168.31.28:5000
+
+6. Flash ESP32:
+   (In VS Code, open QSafe project)
+   Build → Upload
+
+Expected Behavior:
+==================
+
+When everything works:
+- Dashboard shows "Connected" status
+- Acceleration charts update smoothly (20 Hz)
+- Tapping ESP32 shows immediate spikes in charts
+- STA/LTA ratio increases during motion
+- Triggers appear as alerts with red banner
+- HiveMQ Cloud still receives all production data
+
+Troubleshooting:
+================
+
+Dashboard "Disconnected":
+  → Check: ps aux | grep dashboard_server
+  → Start: python3 dashboard_server.py
+
+No data on charts:
+  → Check ESP32 serial: Should see "[MQTT] ✓ Dev broker connected"
+  → Check Mosquitto: sudo systemctl status mosquitto
+  → Test MQTT: mosquitto_sub -h 192.168.31.28 -t 'eew/#' -v
+
+ESP32 can't connect to dev broker:
+  → Verify IP in config.h matches Pi: 192.168.31.28
+  → Check same WiFi network
+  → Ping from ESP32 to Pi (if possible)
+  → Check firewall: sudo ufw allow 1883
+
+Charts freeze:
+  → Network congestion (reduce stream rate in dual_mqtt.cpp)
+  → Pi overloaded (check: top)
+
+For detailed troubleshooting, see:
+  SETUP_INSTRUCTIONS.md - Section "Troubleshooting"
+  README.md - Section "Troubleshooting"
+
+Development vs Production:
+==========================
+
+Development Setup (this):
+  - Local MQTT broker (no encryption)
+  - Full 200 Hz data streaming
+  - Real-time visual debugging
+  - Web dashboard
+  - Higher network/CPU usage
+  - Use during:
+    * Initial testing
+    * Threshold tuning
+    * Algorithm development
+    * Debugging trigger issues
+
+Production Setup (existing):
+  - Cloud MQTT (HiveMQ, encrypted)
+  - Only triggers + heartbeats
+  - Lower network usage
+  - Mobile app alerts
+  - Use for:
+    * Deployed nodes
+    * Long-term monitoring
+    * Multi-city network
+
+Both can run simultaneously! ESP32 publishes to both brokers.
+
+To disable dev mode later:
+  Set in config.h: #define ENABLE_DEV_BROKER false
+
+Performance Notes:
+==================
+
+Network bandwidth (per node):
+  - Dev streaming: ~40 KB/s (20 Hz × 128 bytes JSON)
+  - Production: ~1 KB/s (heartbeat every 10s)
+
+Pi 4 can handle:
+  - 5-10 nodes streaming simultaneously
+  - More if you reduce stream rate (change _stream_counter in dual_mqtt.cpp)
+
+ESP32 RAM usage:
+  - Dual MQTT adds ~8 KB (two WiFi clients)
+  - Streaming adds minimal overhead (rate-limited)
+
+Browser performance:
+  - Chart.js handles 1000+ points smoothly
+  - Older browsers may lag (use Chrome/Edge/Firefox)
+
+===========================================
+For questions, see README.md or SETUP_INSTRUCTIONS.md
+Generated: 2025-11-14

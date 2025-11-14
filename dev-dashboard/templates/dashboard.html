@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QSafe Development Dashboard</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 2em;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.9em;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background: #2a2a2a;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-box {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .stat-label {
+            color: #999;
+            font-size: 0.85em;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            color: #e0e0e0;
+            font-size: 1.8em;
+            font-weight: bold;
+        }
+
+        .stat-unit {
+            color: #999;
+            font-size: 0.7em;
+            margin-left: 5px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 15px;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-online {
+            background: #4caf50;
+        }
+
+        .status-offline {
+            background: #f44336;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .trigger-log {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+
+        .trigger-item {
+            background: #1a1a1a;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            border-left: 4px solid #ff6b6b;
+            font-size: 0.9em;
+        }
+
+        .trigger-time {
+            color: #999;
+            font-size: 0.85em;
+        }
+
+        .alert-box {
+            background: #ff6b6b;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .alert-box.active {
+            display: block;
+            animation: alertPulse 0.5s ease-in-out infinite alternate;
+        }
+
+        .detection-table-container {
+            max-height: 500px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+
+        .detection-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85em;
+        }
+
+        .detection-table thead {
+            position: sticky;
+            top: 0;
+            background: #1a1a1a;
+            z-index: 10;
+        }
+
+        .detection-table th {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 2px solid #333;
+            color: #4CAF50;
+            font-weight: 600;
+        }
+
+        .detection-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #222;
+        }
+
+        .detection-table tbody tr:hover {
+            background: #1a1a1a;
+        }
+
+        .detection-row-new {
+            background: #2a2a1a;
+            border-left: 3px solid #ffce56;
+            animation: highlightRow 2s ease-out;
+        }
+
+        @keyframes highlightRow {
+            0% { background: #3a3a1a; }
+            100% { background: #1a1a1a; }
+        }
+
+        .per-axis-detail {
+            font-size: 0.8em;
+            color: #999;
+        }
+
+        .ratio-high {
+            color: #ff6b6b;
+            font-weight: bold;
+        }
+
+        .ratio-medium {
+            color: #ffce56;
+        }
+
+        .ratio-normal {
+            color: #4CAF50;
+        }
+
+        @keyframes alertPulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.02); }
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🌍 QSafe Development Dashboard</h1>
+        <p>Real-time Seismograph Node Monitoring</p>
+        <p id="connection-status">
+            <span class="status-indicator status-offline"></span>
+            Connecting to server...
+        </p>
+    </div>
+
+    <div class="container">
+        <!-- Real-time Acceleration Chart -->
+        <div class="card full-width">
+            <h2>📊 Real-time Acceleration (200 Hz) - Z-axis gravity compensated</h2>
+            <div class="chart-container">
+                <canvas id="accelChart"></canvas>
+            </div>
+        </div>
+
+        <!-- STA/LTA Ratio Chart -->
+        <div class="card full-width">
+            <h2>📈 STA/LTA Trigger Detection</h2>
+            <div class="chart-container">
+                <canvas id="staLtaChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Node Statistics -->
+        <div class="card">
+            <h2>📡 Node Statistics</h2>
+            <div class="stat-grid">
+                <div class="stat-box">
+                    <div class="stat-label">RMS Acceleration</div>
+                    <div class="stat-value" id="stat-rms">0.0<span class="stat-unit">mg</span></div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Kurtosis</div>
+                    <div class="stat-value" id="stat-kurtosis">0.0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Peak Frequency</div>
+                    <div class="stat-value" id="stat-freq">0.0<span class="stat-unit">Hz</span></div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">STA/LTA Ratio</div>
+                    <div class="stat-value" id="stat-stalta">0.0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">STA (Short-Term Avg)</div>
+                    <div class="stat-value" id="stat-sta">0.0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">LTA (Long-Term Avg)</div>
+                    <div class="stat-value" id="stat-lta">0.0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Control Limits (SPC) -->
+        <div class="card">
+            <h2>📊 Adaptive Control Limits (SPC) - Self-Learning + Lowpass Filtered (<15 Hz)</h2>
+            <div class="stat-grid">
+                <div class="stat-box">
+                    <div class="stat-label">Baseline Mean (μ)</div>
+                    <div class="stat-value" id="control-mean">0.0<span class="stat-unit">mg²</span></div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Std Dev (σ)</div>
+                    <div class="stat-value" id="control-std">0.0<span class="stat-unit">mg²</span></div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">k-Sigma (learned)</div>
+                    <div class="stat-value" id="k-sigma">2.0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">UCL (μ + kσ)</div>
+                    <div class="stat-value" id="control-ucl">0.0<span class="stat-unit">mg²</span></div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Adaptive Threshold (UCL/μ)</div>
+                    <div class="stat-value" id="adaptive-threshold">3.00</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">False Positive Rate</div>
+                    <div class="stat-value" id="fp-rate">0.000<span class="stat-unit">%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Per-Axis STA/LTA -->
+        <div class="card full-width">
+            <h2>🎯 Per-Axis STA/LTA Detection</h2>
+            <div class="stat-grid">
+                <div class="stat-box" style="border-left-color: #ff6384;">
+                    <div class="stat-label">X-Axis Ratio</div>
+                    <div class="stat-value" id="axis-x-ratio">0.0</div>
+                </div>
+                <div class="stat-box" style="border-left-color: #36a2eb;">
+                    <div class="stat-label">Y-Axis Ratio</div>
+                    <div class="stat-value" id="axis-y-ratio">0.0</div>
+                </div>
+                <div class="stat-box" style="border-left-color: #4bc0c0;">
+                    <div class="stat-label">Z-Axis Ratio</div>
+                    <div class="stat-value" id="axis-z-ratio">0.0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Directional Detection</div>
+                    <div class="stat-value" id="directional-detect" style="font-size: 1.2em;">-</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Orientation -->
+        <div class="card">
+            <h2>🧭 Node Orientation</h2>
+            <div class="stat-grid">
+                <div class="stat-box">
+                    <div class="stat-label">Roll</div>
+                    <div class="stat-value" id="stat-roll">0<span class="stat-unit">°</span></div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Pitch</div>
+                    <div class="stat-value" id="stat-pitch">0<span class="stat-unit">°</span></div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Node ID</div>
+                    <div class="stat-value" id="stat-nodeid" style="font-size: 1.2em;">-</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Triggers</div>
+                    <div class="stat-value" id="stat-triggers">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trigger Events Log -->
+        <div class="card full-width">
+            <h2>⚠️ Trigger Events</h2>
+            <div id="trigger-alert" class="alert-box">
+                <strong>🚨 TRIGGER DETECTED!</strong><br>
+                <span id="alert-text"></span>
+            </div>
+            <div class="trigger-log" id="trigger-log">
+                <p style="color: #999; text-align: center;">No triggers yet...</p>
+            </div>
+        </div>
+
+        <!-- Detection Events Log (for Manual Verification) -->
+        <div class="card full-width">
+            <h2>📋 Detection Log (Manual Verification)</h2>
+            <p style="color: #999; font-size: 0.9em; margin-bottom: 15px;">
+                All events where STA/LTA ratio exceeded adaptive threshold. Compare with official earthquake reports to assess accuracy.
+            </p>
+            <div class="detection-table-container">
+                <table class="detection-table" id="detection-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Node ID</th>
+                            <th>STA/LTA</th>
+                            <th>Threshold</th>
+                            <th>RMS (mg)</th>
+                            <th>Freq (Hz)</th>
+                            <th>Per-Axis</th>
+                            <th>k-Sigma</th>
+                        </tr>
+                    </thead>
+                    <tbody id="detection-tbody">
+                        <tr>
+                            <td colspan="8" style="text-align: center; color: #999;">No detections logged yet...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Socket.IO connection
+        const socket = io();
+
+        // Connection status
+        socket.on('connect', () => {
+            document.getElementById('connection-status').innerHTML =
+                '<span class="status-indicator status-online"></span>Connected';
+        });
+
+        socket.on('disconnect', () => {
+            document.getElementById('connection-status').innerHTML =
+                '<span class="status-indicator status-offline"></span>Disconnected';
+        });
+
+        // Chart.js setup
+        const accelCtx = document.getElementById('accelChart').getContext('2d');
+        const staLtaCtx = document.getElementById('staLtaChart').getContext('2d');
+
+        // Acceleration chart
+        const maxDataPoints = 400; // 20 seconds @ 20 Hz (updates every 10th sample)
+        const accelData = {
+            labels: [],
+            datasets: [
+                {
+                    label: 'X-axis',
+                    data: [],
+                    borderColor: '#ff6384',
+                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                    borderWidth: 1.5,
+                    tension: 0.2,
+                    pointRadius: 0
+                },
+                {
+                    label: 'Y-axis',
+                    data: [],
+                    borderColor: '#36a2eb',
+                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                    borderWidth: 1.5,
+                    tension: 0.2,
+                    pointRadius: 0
+                },
+                {
+                    label: 'Z-axis',
+                    data: [],
+                    borderColor: '#4bc0c0',
+                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                    borderWidth: 1.5,
+                    tension: 0.2,
+                    pointRadius: 0
+                }
+            ]
+        };
+
+        const accelChart = new Chart(accelCtx, {
+            type: 'line',
+            data: accelData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                scales: {
+                    x: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: 'Time (last 20 seconds)',
+                            color: '#e0e0e0'
+                        },
+                        ticks: {
+                            color: '#999',
+                            maxRotation: 0,
+                            autoSkip: true,
+                            maxTicksLimit: 7
+                        },
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Acceleration (mg)',
+                            color: '#e0e0e0'
+                        },
+                        ticks: { color: '#999' },
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: { color: '#e0e0e0' }
+                    }
+                }
+            }
+        });
+
+        // STA/LTA chart
+        const staLtaData = {
+            labels: [],
+            datasets: [
+                {
+                    label: 'STA/LTA Ratio',
+                    data: [],
+                    borderColor: '#ffce56',
+                    backgroundColor: 'rgba(255, 206, 86, 0.2)',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    pointRadius: 0,
+                    fill: true
+                },
+                {
+                    label: 'Adaptive Threshold',
+                    data: [],
+                    borderColor: '#ff6b6b',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false
+                }
+            ]
+        };
+
+        const staLtaChart = new Chart(staLtaCtx, {
+            type: 'line',
+            data: staLtaData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                scales: {
+                    x: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: 'Time (last 20 seconds)',
+                            color: '#e0e0e0'
+                        },
+                        ticks: {
+                            color: '#999',
+                            maxRotation: 0,
+                            autoSkip: true,
+                            maxTicksLimit: 7
+                        },
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'STA/LTA Ratio',
+                            color: '#e0e0e0'
+                        },
+                        ticks: { color: '#999' },
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: { color: '#e0e0e0' }
+                    }
+                }
+            }
+        });
+
+        // Time tracking for labels
+        let dataPointCounter = 0;
+        const startTime = Date.now();
+
+        // Update charts with streaming data
+        socket.on('stream_update', (data) => {
+            console.log('Received stream_update:', data);
+
+            // Calculate elapsed time in seconds
+            const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+
+            // Create timestamp label - show every ~5 seconds (every 100 data points @ 20Hz)
+            let timeLabel = '';
+            if (dataPointCounter % 100 === 0) {
+                timeLabel = `-${20 - (elapsedSeconds % 20)}s`;
+            }
+            dataPointCounter++;
+
+            // Add data points
+            accelData.datasets[0].data.push(data.x);
+            accelData.datasets[1].data.push(data.y);
+            accelData.datasets[2].data.push(data.z);  // Gravity-compensated
+            accelData.labels.push(timeLabel);
+
+            // Add STA/LTA ratio
+            staLtaData.datasets[0].data.push(data.sta_lta_ratio || data.sta_lta || 0);
+            // Use adaptive threshold if available, otherwise use fixed 3.0
+            const threshold = data.adaptive_threshold || 3.0;
+            staLtaData.datasets[1].data.push(threshold);
+            staLtaData.labels.push(timeLabel);
+
+            // Update STA and LTA stat boxes
+            if (data.sta !== undefined) {
+                document.getElementById('stat-sta').textContent = data.sta.toFixed(2);
+            }
+            if (data.lta !== undefined) {
+                document.getElementById('stat-lta').textContent = data.lta.toFixed(2);
+            }
+            if (data.sta_lta_ratio !== undefined) {
+                document.getElementById('stat-stalta').textContent = data.sta_lta_ratio.toFixed(2);
+            }
+
+            // Update control limits
+            if (data.control_mean !== undefined) {
+                document.getElementById('control-mean').innerHTML = data.control_mean.toFixed(2) + '<span class="stat-unit">mg²</span>';
+            }
+            if (data.control_std !== undefined) {
+                document.getElementById('control-std').innerHTML = data.control_std.toFixed(2) + '<span class="stat-unit">mg²</span>';
+            }
+            if (data.k_sigma !== undefined) {
+                document.getElementById('k-sigma').textContent = data.k_sigma.toFixed(2);
+            }
+            if (data.control_ucl !== undefined) {
+                document.getElementById('control-ucl').innerHTML = data.control_ucl.toFixed(2) + '<span class="stat-unit">mg²</span>';
+            }
+            if (data.adaptive_threshold !== undefined) {
+                document.getElementById('adaptive-threshold').textContent = data.adaptive_threshold.toFixed(2);
+            }
+            if (data.false_positive_rate !== undefined) {
+                const fpPercent = (data.false_positive_rate * 100).toFixed(3);
+                document.getElementById('fp-rate').innerHTML = fpPercent + '<span class="stat-unit">%</span>';
+            }
+
+            // Update per-axis STA/LTA
+            if (data.per_axis) {
+                if (data.per_axis.x) {
+                    document.getElementById('axis-x-ratio').textContent = data.per_axis.x.ratio.toFixed(2);
+                }
+                if (data.per_axis.y) {
+                    document.getElementById('axis-y-ratio').textContent = data.per_axis.y.ratio.toFixed(2);
+                }
+                if (data.per_axis.z) {
+                    document.getElementById('axis-z-ratio').textContent = data.per_axis.z.ratio.toFixed(2);
+                }
+
+                // Determine which axis has highest ratio for directional detection
+                const xRatio = data.per_axis.x?.ratio || 0;
+                const yRatio = data.per_axis.y?.ratio || 0;
+                const zRatio = data.per_axis.z?.ratio || 0;
+                const maxRatio = Math.max(xRatio, yRatio, zRatio);
+
+                let direction = '-';
+                if (maxRatio > threshold) {
+                    if (maxRatio === xRatio) direction = 'X-axis';
+                    else if (maxRatio === yRatio) direction = 'Y-axis';
+                    else if (maxRatio === zRatio) direction = 'Z-axis';
+                }
+                document.getElementById('directional-detect').textContent = direction;
+            }
+
+            // Limit data points
+            if (accelData.labels.length > maxDataPoints) {
+                accelData.labels.shift();
+                accelData.datasets.forEach(ds => ds.data.shift());
+                staLtaData.labels.shift();
+                staLtaData.datasets.forEach(ds => ds.data.shift());
+            }
+
+            // Update charts
+            accelChart.update('none');
+            staLtaChart.update('none');
+        });
+
+        // Update statistics
+        socket.on('stats_update', (stats) => {
+            document.getElementById('stat-rms').innerHTML =
+                stats.rms.toFixed(1) + '<span class="stat-unit">mg</span>';
+            document.getElementById('stat-kurtosis').textContent = stats.kurtosis.toFixed(2);
+            document.getElementById('stat-freq').innerHTML =
+                stats.peak_freq.toFixed(2) + '<span class="stat-unit">Hz</span>';
+            document.getElementById('stat-stalta').textContent = stats.sta_lta_ratio.toFixed(2);
+            document.getElementById('stat-roll').innerHTML =
+                stats.orientation.roll.toFixed(0) + '<span class="stat-unit">°</span>';
+            document.getElementById('stat-pitch').innerHTML =
+                stats.orientation.pitch.toFixed(0) + '<span class="stat-unit">°</span>';
+            document.getElementById('stat-nodeid').textContent = stats.node_id;
+            document.getElementById('stat-triggers').textContent = stats.trigger_count;
+        });
+
+        // Handle trigger events
+        socket.on('trigger_event', (event) => {
+            // Show alert
+            const alertBox = document.getElementById('trigger-alert');
+            const alertText = document.getElementById('alert-text');
+            alertText.textContent = `RMS: ${event.rms.toFixed(1)} mg | ` +
+                                   `Kurtosis: ${event.kurtosis.toFixed(2)} | ` +
+                                   `Peak Freq: ${event.peak_freq.toFixed(2)} Hz`;
+            alertBox.classList.add('active');
+
+            setTimeout(() => {
+                alertBox.classList.remove('active');
+            }, 3000);
+
+            // Add to log
+            const log = document.getElementById('trigger-log');
+            if (log.children[0]?.textContent.includes('No triggers')) {
+                log.innerHTML = '';
+            }
+
+            const item = document.createElement('div');
+            item.className = 'trigger-item';
+            item.innerHTML = `
+                <strong>${event.node_id}</strong><br>
+                RMS: ${event.rms.toFixed(1)} mg | Kurtosis: ${event.kurtosis.toFixed(2)} | Freq: ${event.peak_freq.toFixed(2)} Hz<br>
+                <span class="trigger-time">${new Date(event.timestamp).toLocaleString()}</span>
+            `;
+            log.insertBefore(item, log.firstChild);
+
+            // Limit log items
+            while (log.children.length > 20) {
+                log.removeChild(log.lastChild);
+            }
+        });
+
+        // Handle detection events (for manual verification)
+        socket.on('detection_event', (detection) => {
+            console.log('Detection event received:', detection);
+
+            const tbody = document.getElementById('detection-tbody');
+
+            // Remove "no detections" placeholder if present
+            if (tbody.children[0]?.children[0]?.colSpan === 8) {
+                tbody.innerHTML = '';
+            }
+
+            // Determine ratio color class
+            let ratioClass = 'ratio-normal';
+            if (detection.sta_lta_ratio > detection.adaptive_threshold * 1.5) {
+                ratioClass = 'ratio-high';
+            } else if (detection.sta_lta_ratio > detection.adaptive_threshold * 1.2) {
+                ratioClass = 'ratio-medium';
+            }
+
+            // Format per-axis data
+            let perAxisHtml = '-';
+            if (detection.per_axis) {
+                perAxisHtml = `<span class="per-axis-detail">X:${detection.per_axis.x} Y:${detection.per_axis.y} Z:${detection.per_axis.z}</span>`;
+            }
+
+            // Create new row
+            const row = document.createElement('tr');
+            row.className = 'detection-row-new';
+            row.innerHTML = `
+                <td>${detection.timestamp}</td>
+                <td>${detection.node_id}</td>
+                <td class="${ratioClass}">${detection.sta_lta_ratio}</td>
+                <td>${detection.adaptive_threshold}</td>
+                <td>${detection.rms}</td>
+                <td>${detection.peak_freq}</td>
+                <td>${perAxisHtml}</td>
+                <td>${detection.k_sigma}</td>
+            `;
+
+            // Insert at top (most recent first)
+            tbody.insertBefore(row, tbody.firstChild);
+
+            // Limit to 50 rows
+            while (tbody.children.length > 50) {
+                tbody.removeChild(tbody.lastChild);
+            }
+
+            // Remove highlight animation class after 2 seconds
+            setTimeout(() => {
+                row.classList.remove('detection-row-new');
+            }, 2000);
+        });
+    </script>
+</body>
+</html>

@@ -10,7 +10,7 @@
 #include "adxl345.h"
 #include "calibration.h"
 #include "trigger.h"
-#include "mqtt_handler.h"
+#include "dual_mqtt.h"  // Use dual MQTT for dev + cloud
 #include "ota_updater.h"
 
 // ============================================================================
@@ -20,7 +20,7 @@
 ADXL345 accel;  // I2C mode - no pin argument needed
 Calibration calibration;
 TriggerDetector trigger_detector;
-MQTTHandler mqtt;
+DualMQTT mqtt;  // Dual MQTT: Cloud (HiveMQ) + Dev (Pi)
 OTAUpdater ota;
 
 WiFiUDP ntpUDP;
@@ -294,9 +294,14 @@ void samplingTask(void* parameter) {
             MG_TO_G(ax_mg), MG_TO_G(ay_mg), MG_TO_G(az_mg),
             corrected_x, corrected_y, corrected_z
         );
-        
-        // Store Z-axis in buffer (convert back to mg for trigger detection)
+
+        // Convert to mg for storage and streaming
+        float x_mg = corrected_x * 1000.0;
+        float y_mg = corrected_y * 1000.0;
         float z_mg = corrected_z * 1000.0;
+
+        // Stream to dev broker (if enabled) - rate-limited internally
+        mqtt.publishStreamSample(x_mg, y_mg, z_mg);
         
         // Store as int16 for waveform transmission
         waveform_buffer[buffer_index] = (sample_t)(corrected_z * 1000.0 / ADXL_SCALE_FACTOR);
