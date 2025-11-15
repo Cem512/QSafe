@@ -243,13 +243,45 @@ Built with:
 
 ---
 
-**Version**: 1.0.1
+**Version**: 1.0.9
 **Author**: QSafe Team
 **Hardware**: ESP32 + ADXL345
 
 ## Updates & Changelog
 
-### v1.0.1 (Latest)
+### v1.0.9 (Latest) - **Critical Bug Fix**
+**Released**: 2025-11-15
+
+**What's Fixed:**
+- **Critical**: Fixed ESP32 trigger detection gravity compensation
+  - Problem: ESP32 was measuring static gravity (~987 mg) instead of motion
+  - Solution: Added gravity compensation before trigger detection
+  - Impact: RMS now shows actual motion (~5-15 mg) instead of gravity
+  - Result: Trigger detection now works properly with dashboard
+
+**Technical Details:**
+- Modified `src/main.cpp` to remove ~985 mg gravity bias before `addSample()`
+- Aligns ESP32 processing with dashboard's gravity compensation approach
+- RMS and Kurtosis calculations now measure actual seismic motion
+- Trigger detection thresholds now function as designed
+
+**Before this fix:**
+- RMS stuck at ~987 mg (measuring gravity)
+- Kurtosis stuck at 0.00 (no variance in constant signal)
+- Trigger detection completely non-functional
+
+**After this fix:**
+- RMS: ~5-15 mg at rest (actual motion detection)
+- Kurtosis: Properly detects impulsive events
+- Trigger detection: Fully operational and synchronized with dashboard
+
+### v1.0.8
+- Enhanced OTA update system
+- Added test mode for trigger detection (`{"command":"testmode"}`)
+- Improved spectral filtering for noise rejection
+- Added P-wave and S-wave classification
+
+### v1.0.1
 - Fixed OTA binary size issue (was 16 MB, now correctly ~1 MB)
 - Improved merge script to use `firmware.bin` instead of `firmware.elf`
 - Added file size verification during build
