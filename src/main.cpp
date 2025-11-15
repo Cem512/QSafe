@@ -321,9 +321,15 @@ void samplingTask(void* parameter) {
             }
             continue;  // Skip trigger detection during cooldown
         }
-        
-        // Add sample to trigger detector
-        trigger_detector.addSample(z_mg);
+
+        // Remove gravity from Z-axis for trigger detection
+        // Z-axis has ~-1000 mg (1g) bias from calibration.applyRotation()
+        // Remove this to get gravity-compensated acceleration centered at 0
+        // This matches the dashboard's approach: z_raw + 985.0
+        float z_no_gravity = z_mg + 985.0;  // Compensate for ~-985 mg gravity bias
+
+        // Add gravity-compensated sample to trigger detector
+        trigger_detector.addSample(z_no_gravity);
         
         // Check for trigger
         TriggerInfo info;
