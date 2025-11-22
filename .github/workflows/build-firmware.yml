@@ -55,29 +55,18 @@ jobs:
     - name: Update version in code
       run: |
         VERSION="${{ steps.version.outputs.VERSION }}"
-        cat > esp32-node/include/version.h << EOF
-        #ifndef VERSION_H
-        #define VERSION_H
-
-        #define FIRMWARE_VERSION "$VERSION"
-        #define BUILD_TIMESTAMP "$(date -u +"%Y-%m-%d %H:%M:%S UTC")"
-        #define GIT_COMMIT "${{ github.sha }}"
-
-        #endif
-        EOF
+        # Update version in config.h
+        sed -i 's/#define FIRMWARE_VERSION ".*"/#define FIRMWARE_VERSION "'"$VERSION"'"/' src/config.h
 
     - name: Build firmware
       run: |
-        cd esp32-node
         pio run --environment esp32dev
 
     - name: Rename firmware with version
       run: |
         VERSION="${{ steps.version.outputs.VERSION }}"
-        cp esp32-node/.pio/build/esp32dev/firmware.bin \
-           qsafe-ota.bin
-        cp esp32-node/.pio/build/esp32dev/firmware.bin \
-           qsafe-esp32-$VERSION.bin
+        cp .pio/build/esp32dev/firmware.bin qsafe-ota.bin
+        cp .pio/build/esp32dev/firmware.bin qsafe-esp32-$VERSION.bin
 
     - name: Generate firmware metadata
       run: |
